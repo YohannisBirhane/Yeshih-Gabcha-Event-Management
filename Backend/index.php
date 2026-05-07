@@ -1,5 +1,4 @@
 <?php
-// backend-php/index.php
 
 // CORS Headers
 $origin = isset($_SERVER['HTTP_ORIGIN']) ? $_SERVER['HTTP_ORIGIN'] : '*';
@@ -82,6 +81,7 @@ function handleRoute($route) {
         case 'health':
             sendResponse(200, true, 'Server is running', ['timestamp' => date('c')]);
             break;
+        
         default:
             sendResponse(404, false, 'Endpoint not found', null);
             break;
