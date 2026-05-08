@@ -167,7 +167,7 @@ class EventController {
                 'type'     => 'payment_created',
                 'title'    => 'New Event Ticket Payment',
                 'message'  => "Ticket payment for '{$event['title']}' via {$d['paymentMethod']}",
-                'metadata' => json_encode(['paymentId' => $payment['id']]),
+                'data'     => ['paymentId' => $payment['id']],
             ]);
         } catch (Throwable $e) {}
 
