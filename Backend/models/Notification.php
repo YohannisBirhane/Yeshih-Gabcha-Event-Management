@@ -4,67 +4,74 @@
 class Notification {
     private $conn;
     private $table = 'notifications';
-    
+
     public function __construct($conn) {
         $this->conn = $conn;
     }
-    
+
+    // Create Notification
     public function create($data) {
-        $sql = "INSERT INTO {$this->table} (id, userId, type, title, message, data, isRead) 
-                VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $sql = "INSERT INTO {$this->table}
+                (title, message, type, receiver, status)
+                VALUES (?, ?, ?, ?, ?)";
+
         $stmt = $this->conn->prepare($sql);
-        
-        $id = uniqid('notif_', true);
-        
+
         return $stmt->execute([
-            $id,
-            $data['userId'],
-            $data['type'],
-            $data['title'],
+            $data['title'] ?? null,
             $data['message'] ?? null,
-            isset($data['data']) ? json_encode($data['data']) : null,
-            $data['isRead'] ?? false
+            $data['type'] ?? 'general',
+            $data['receiver'] ?? null,
+            $data['status'] ?? 'unread'
         ]);
     }
-    
-    public function findById($id) {
-        $sql = "SELECT * FROM {$this->table} WHERE id = ?";
+
+    // Get All Notifications
+    public function getAll($limit = 50, $offset = 0) {
+        $sql = "SELECT * FROM {$this->table}
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?";
+
         $stmt = $this->conn->prepare($sql);
-        $stmt->execute([$id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-    
-    public function getByUser($userId, $limit = 20, $offset = 0) {
-        $sql = "SELECT * FROM {$this->table} WHERE userId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute([$userId, $limit, $offset]);
+        $stmt->execute([$limit, $offset]);
+
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    
-    public function markAsRead($id) {
-        $sql = "UPDATE {$this->table} SET isRead = TRUE, readAt = NOW() WHERE id = ?";
+
+    // Get Notification By ID
+    public function getById($id) {
+        $sql = "SELECT * FROM {$this->table} WHERE id = ?";
+
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([$id]);
+        $stmt->execute([$id]);
+
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
-    
-    public function markAllAsRead($userId) {
-        $sql = "UPDATE {$this->table} SET isRead = TRUE, readAt = NOW() WHERE userId = ?";
+
+    // Update Notification
+    public function update($id, $data) {
+        $sql = "UPDATE {$this->table}
+                SET title = ?, message = ?, type = ?, receiver = ?, status = ?
+                WHERE id = ?";
+
         $stmt = $this->conn->prepare($sql);
-        return $stmt->execute([$userId]);
+
+        return $stmt->execute([
+            $data['title'] ?? null,
+            $data['message'] ?? null,
+            $data['type'] ?? 'general',
+            $data['receiver'] ?? null,
+            $data['status'] ?? 'unread',
+            $id
+        ]);
     }
-    
+
+    // Delete Notification
     public function delete($id) {
         $sql = "DELETE FROM {$this->table} WHERE id = ?";
+
         $stmt = $this->conn->prepare($sql);
+
         return $stmt->execute([$id]);
     }
-    
-    public function getUnreadCount($userId) {
-        $sql = "SELECT COUNT(*) as count FROM {$this->table} WHERE userId = ? AND isRead = FALSE";
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute([$userId]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result['count'];
-    }
 }
-?>
