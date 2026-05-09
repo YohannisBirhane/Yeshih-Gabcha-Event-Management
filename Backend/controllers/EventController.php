@@ -2,6 +2,8 @@
 // controllers/EventController.php
 
 require_once __DIR__ . '/../models/Event.php';
+require_once __DIR__ . '/../models/EventVendor.php';
+require_once __DIR__ . '/../models/Vendor.php';
 require_once __DIR__ . '/../models/Payment.php';
 require_once __DIR__ . '/../models/PaymentMethodConfig.php';
 require_once __DIR__ . '/../models/Notification.php';
@@ -188,6 +190,142 @@ class EventController {
                 ],
                 'note' => $methodCfg['note'] ?? null,
             ],
+        ]);
+    }
+
+    // POST /events/{id}/vendors - Assign vendor to event (admin)
+    public static function assignVendor(string $id): void {
+        global $conn;
+        authorizeAdmin();
+
+        // Verify event exists
+        $model = new Event($conn);
+        if (!$model->findById($id)) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $d = self::json();
+        if (empty($d['vendorId'])) {
+            sendResponse(400, false, 'vendorId is required');
+        }
+
+        // Verify vendor exists
+        $vendorModel = new Vendor($conn);
+        if (!$vendorModel->getById($d['vendorId'])) {
+            sendResponse(404, false, 'Vendor not found');
+        }
+
+        // Check if already assigned
+        $evModel = new EventVendor($conn);
+        if ($evModel->isAssigned($id, $d['vendorId'])) {
+            sendResponse(400, false, 'Vendor is already assigned to this event');
+        }
+
+        // Assign vendor
+        $assignment = $evModel->assignVendor(
+            $id,
+            $d['vendorId'],
+            $d['notes'] ?? null
+        );
+
+        sendResponse(201, true, 'Vendor assigned to event', $assignment);
+    }
+
+    // GET /events/{id}/vendors - Get vendors assigned to event
+    public static function getEventVendors(string $id): void {
+        global $conn;
+
+        // Verify event exists
+        $model = new Event($conn);
+        if (!$model->findById($id)) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $evModel = new EventVendor($conn);
+        $vendors = $evModel->getByEventId($id);
+
+        sendResponse(200, true, 'Event vendors retrieved', [
+            'eventId' => $id,
+            'vendors' => $vendors,
+            'count'   => count($vendors),
+        ]);
+    }
+
+    // DELETE /events/{id}/vendors/{vendorId} - Remove vendor from event (admin)
+    public static function removeVendor(string $id, string $vendorId): void {
+        global $conn;
+        authorizeAdmin();
+
+        // Verify event exists
+        $model = new Event($conn);
+        if (!$model->findById($id)) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        // Remove assignment
+        $evModel = new EventVendor($conn);
+        if ($evModel->unassignVendor($id, $vendorId)) {
+            sendResponse(200, true, 'Vendor removed from event');
+        } else {
+            sendResponse(404, false, 'Vendor assignment not found');
+        }
+    }
+
+    // POST /events/vendors/bulk-assign - Assign multiple vendors to event (admin)
+    public static function bulkAssignVendors(): void {
+        global $conn;
+        authorizeAdmin();
+
+        $d = self::json();
+        if (empty($d['eventId'])) {
+            sendResponse(400, false, 'eventId is required');
+        }
+        if (empty($d['vendorIds']) || !is_array($d['vendorIds'])) {
+            sendResponse(400, false, 'vendorIds array is required');
+        }
+
+        // Verify event exists
+        $model = new Event($conn);
+        if (!$model->findById($d['eventId'])) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $evModel = new EventVendor($conn);
+        $vendorModel = new Vendor($conn);
+        $assigned = [];
+        $failed = [];
+
+        foreach ($d['vendorIds'] as $vendorId) {
+            try {
+                // Verify vendor exists
+                if (!$vendorModel->getById($vendorId)) {
+                    $failed[] = ['vendorId' => $vendorId, 'reason' => 'Vendor not found'];
+                    continue;
+                }
+
+                // Check if already assigned
+                if ($evModel->isAssigned($d['eventId'], $vendorId)) {
+                    $failed[] = ['vendorId' => $vendorId, 'reason' => 'Already assigned'];
+                    continue;
+                }
+
+                // Assign vendor
+                $assignment = $evModel->assignVendor(
+                    $d['eventId'],
+                    $vendorId,
+                    $d['notes'] ?? null
+                );
+                $assigned[] = $assignment;
+            } catch (Exception $e) {
+                $failed[] = ['vendorId' => $vendorId, 'reason' => $e->getMessage()];
+            }
+        }
+
+        sendResponse(201, true, 'Vendors assigned', [
+            'assigned' => $assigned,
+            'failed'   => $failed,
+            'total'    => count($d['vendorIds']),
+            'success'  => count($assigned),
         ]);
     }
 
