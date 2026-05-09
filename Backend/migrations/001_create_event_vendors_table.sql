@@ -13,3 +13,4 @@ CREATE TABLE IF NOT EXISTS event_vendors (
     KEY idx_eventId (eventId),
     KEY idx_vendorId (vendorId)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+//database migration for creating the event_vendors table to manage the many-to-many relationship between events and vendors. This table includes foreign keys to ensure referential integrity and a unique constraint to prevent duplicate assignments of the same vendor to the same event.
