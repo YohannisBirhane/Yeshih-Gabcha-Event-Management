@@ -79,5 +79,26 @@ class Payment {
         $stmt = $this->conn->prepare($sql);
         return $stmt->execute([$id]);
     }
+
+    public function getByEvent($eventId, $limit = 50, $offset = 0) {
+        $sql = "SELECT * FROM {$this->table} WHERE eventId = ? ORDER BY createdAt DESC LIMIT ? OFFSET ?";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$eventId, $limit, $offset]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function countByEvent($eventId) {
+        $sql = "SELECT COUNT(*) as total FROM {$this->table} WHERE eventId = ?";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$eventId]);
+        return (int)$stmt->fetch(PDO::FETCH_ASSOC)['total'];
+    }
+
+    public function getEventGuestStats($eventId) {
+        $sql = "SELECT status, COUNT(*) as count FROM {$this->table} WHERE eventId = ? GROUP BY status";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([$eventId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
 }
 ?>

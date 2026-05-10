@@ -6,6 +6,8 @@ require_once __DIR__ . '/../models/EventVendor.php';
 require_once __DIR__ . '/../models/Vendor.php';
 require_once __DIR__ . '/../models/Payment.php';
 require_once __DIR__ . '/../models/PaymentMethodConfig.php';
+require_once __DIR__ . '/../models/User.php';
+require_once __DIR__ . '/../models/Guest.php';
 require_once __DIR__ . '/../models/Notification.php';
 require_once __DIR__ . '/../utils/Upload.php';
 require_once __DIR__ . '/../utils/Response.php';
@@ -327,6 +329,102 @@ class EventController {
             'total'    => count($d['vendorIds']),
             'success'  => count($assigned),
         ]);
+    }
+
+    // GET /events/{id}/guests - Get all guests who booked/paid for event
+    public static function getEventGuests(string $id): void {
+        global $conn;
+
+        // Verify event exists
+        $model = new Event($conn);
+        $event = $model->findById($id);
+        if (!$event) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $limit   = (int)($_GET['limit']  ?? 50);
+        $offset  = (int)($_GET['offset'] ?? 0);
+        $search  = $_GET['search'] ?? '';
+        $status  = $_GET['status'] ?? '';
+
+        $guestModel = new Guest($conn);
+        
+        // Get guests with optional search and status filter
+        if (!empty($search)) {
+            $guests = $guestModel->searchEventGuests($id, $search, $limit);
+            $total = count($guests);
+        } elseif (!empty($status)) {
+            $guests = $guestModel->getGuestsByPaymentStatus($id, $status, $limit, $offset);
+            $total = $guestModel->countEventGuests($id);
+        } else {
+            $guests = $guestModel->getEventGuests($id, $limit, $offset);
+            $total = $guestModel->countEventGuests($id);
+        }
+
+        sendResponse(200, true, 'Event guests retrieved', [
+            'eventId' => $id,
+            'guests'  => $guests,
+            'total'   => $total,
+            'limit'   => $limit,
+            'offset'  => $offset,
+        ]);
+    }
+
+    // GET /events/{id}/guests/stats - Get guest statistics for event
+    public static function getEventGuestStats(string $id): void {
+        global $conn;
+
+        // Verify event exists
+        $model = new Event($conn);
+        $event = $model->findById($id);
+        if (!$event) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $guestModel = new Guest($conn);
+        $totalGuests = $guestModel->countEventGuests($id);
+        $stats = $guestModel->getEventGuestStatistics($id);
+        $revenue = $guestModel->getTotalRevenue($id);
+
+        // Format stats
+        $formatted = [
+            'totalGuests'        => $totalGuests,
+            'totalRevenue'       => $revenue,
+            'byPaymentStatus'    => [],
+        ];
+
+        foreach ($stats as $stat) {
+            $formatted['byPaymentStatus'][$stat['status']] = [
+                'guestCount'   => (int)$stat['guestCount'],
+                'paymentCount' => (int)$stat['paymentCount'],
+                'totalAmount'  => (float)$stat['totalAmount'],
+            ];
+        }
+
+        sendResponse(200, true, 'Event guest statistics retrieved', [
+            'eventId' => $id,
+            'stats'   => $formatted,
+        ]);
+    }
+
+    // GET /events/{id}/guests/{userId} - Get specific guest details
+    public static function getEventGuestDetail(string $id, string $userId): void {
+        global $conn;
+
+        // Verify event exists
+        $model = new Event($conn);
+        if (!$model->findById($id)) {
+            sendResponse(404, false, 'Event not found');
+        }
+
+        $guestModel = new Guest($conn);
+        $guest = $guestModel->getGuestDetail($id, $userId);
+        
+        if (!$guest) {
+            sendResponse(404, false, 'Guest not found for this event');
+        }
+
+        sendResponse(200, true, 'Guest details retrieved', $guest);
     }
 
     private static function json(): array {
